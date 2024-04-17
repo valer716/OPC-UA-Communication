@@ -48,14 +48,14 @@ static void addTSNStreamObject(UA_Server *server) {
     // OK Message változó létrehozása
     UA_VariableAttributes okMsgAttr = UA_VariableAttributes_default;
     okMsgAttr.displayName = UA_LOCALIZEDTEXT("en-US", "OK Message");
-    UA_String okMessage = UA_STRING("Not received");  // Kezdeti érték
+    UA_Boolean ok = false;  // Kezdeti érték: false
     okMsgAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE; // Fontos!
     UA_NodeId okMessageNodeId = UA_NODEID_NUMERIC(1, 5003);
     UA_Server_addVariableNode(server, okMessageNodeId, objectNodeId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "OKMessage"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                              okMsgAttr, &okMessage, NULL);
+                              okMsgAttr, &ok, NULL);
 
 }
 
