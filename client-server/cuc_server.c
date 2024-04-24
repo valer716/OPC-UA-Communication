@@ -3,15 +3,6 @@
 #include <stdio.h>
 #include <open62541/plugin/log_stdout.h>
 #include <string.h>
-#include <unistd.h>
-#include <signal.h>
-
-static volatile UA_Boolean running = true;
-
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received Ctrl-C or SIGINT. Exiting...");
-    running = false;
-}
 
 /*
    A szerveren létrehozunk egy objektumot, amely különböző változókat tartalmaz.
@@ -132,21 +123,14 @@ static void addTSNStreamObject(UA_Server *server) {
 //}
 
 int main(void) {
-    signal(SIGINT, stopHandler);
     UA_Server *server = UA_Server_new();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     // TSN stream paraméterek objektum hozzáadása
     addTSNStreamObject(server);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Press Ctrl-C to exit...");
-    while(running) {
-        // Stream értékek ellenőrzése
-        //checkStreamValues(server, UA_NODEID_NUMERIC(1, 5002), UA_NODEID_NUMERIC(1, 5003));
-        usleep(100000);
-    }
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Exiting...");
-
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Starting OPC-UA server...\n");
+    UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
     return 0;
 }
