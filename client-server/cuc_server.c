@@ -4,6 +4,63 @@
 #include <open62541/plugin/log_stdout.h>
 #include <string.h>
 
+typedef struct {
+    UA_String streamName;
+    UA_String clientData;  // Ez lehet IP cím vagy port szám
+    UA_Boolean dataSent;   // Az adat elküldését jelző flag
+} ClientInfo;
+
+ClientInfo clients[10];
+int clientCount = 0;
+
+static void checkAndSendData() {
+    for (int i = 0; i < clientCount; i++) {
+        for (int j = i + 1; j < clientCount; j++) {
+            if (UA_String_equal(&clients[i].streamName, &clients[j].streamName) && !clients[i].dataSent && !clients[j].dataSent) {
+                // TODO: Adatok elküldése
+
+                clients[i].dataSent = true;
+                clients[j].dataSent = true;
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Data has been sent to the clients.\n");
+            }
+        }
+    }
+}
+
+static void addClientInfo(UA_String streamName, UA_String clientData) {
+    if (clientCount < MAX_CLIENTS) {
+        clients[clientCount].streamName = streamName;
+        clients[clientCount].clientData = clientData;
+        clients[clientCount].dataSent = false;
+        clientCount++;
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Client added: %.*s\n", streamName.length, streamName.data);
+        checkAndSendData();  // Új klienst hozzáadtunk, ellenőrizzük, hogy van-e match
+    }
+}
+
+// Függvény a kliensek adatainak fogadására
+static UA_StatusCode handleClientData(UA_Server* server,
+    const UA_NodeId* sessionId, void* sessionContext,
+    const UA_NodeId* methodId, void* methodContext,
+    const UA_NodeId* objectId, void* objectContext,
+    size_t inputSize, const UA_Variant* input,
+    size_t outputSize, UA_Variant* output) {
+
+    if (inputSize < 2) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Incorrect number of inputs.");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_String streamName = *(UA_String*)input[0].data;
+    UA_String clientData = *(UA_String*)input[1].data;  // IP cím vagy port
+
+    // TODO: logolás
+
+    addClientInfo(streamName, clientData); // kliens hozzáadása
+
+    return UA_STATUSCODE_GOOD;
+}
+
 /*
    A szerveren létrehozunk egy objektumot, amely különböző változókat tartalmaz.
    Ezek a változók reprezentálják a TSN stream paramétereit, mint például hogy mikor induljon a stream, stb.
@@ -128,6 +185,38 @@ int main(void) {
 
     // TSN stream paraméterek objektum hozzáadása
     addTSNStreamObject(server);
+
+    // Kliens adatait kezelő metódus hozzáadása
+
+    UA_NodeId methodId = UA_NODEID_STRING(1, "handleClientData");
+    UA_Argument inputArguments[2];
+
+    // streamName
+    UA_Argument_init(&inputArguments[0]);
+    inputArguments[0].dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    inputArguments[0].description = UA_LOCALIZEDTEXT("en-US", "streamName");
+    inputArguments[0].name = UA_STRING("streamName");
+    inputArguments[0].valueRank = -1;
+
+    // clientData
+    UA_Argument_init(&inputArguments[0]);
+    inputArguments[0].dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    inputArguments[0].description = UA_LOCALIZEDTEXT("en-US", "clientData");
+    inputArguments[0].name = UA_STRING("clientData");
+    inputArguments[0].valueRank = -1;
+
+    UA_MethodAttributes methodAttr = UA_MethodAttributes_default;
+    methodAttr.description = UA_LOCALIZEDTEXT("en-US", "Handle Client Data");
+    methodAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Handle Client Data");
+    methodAttr.executable = true;
+    methodAttr.userExecutable = true;
+
+    UA_Server_addMethodNode(server, methodId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "handleClientData"),
+        methodAttr, &handleClientData,
+        2, &inputArguments, 0, NULL, NULL, NULL);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Starting OPC-UA server...\n");
     UA_Server_runUntilInterrupt(server);
