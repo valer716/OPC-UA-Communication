@@ -12,6 +12,7 @@ typedef struct {
 
 ClientInfo clients[10];
 int clientCount = 0;
+int maxClients = 4;
 
 static void checkAndSendData() {
     for (int i = 0; i < clientCount; i++) {
@@ -28,12 +29,12 @@ static void checkAndSendData() {
 }
 
 static void addClientInfo(UA_String streamName, UA_String clientData) {
-    if (clientCount < MAX_CLIENTS) {
+    if (clientCount < maxClients) {
         clients[clientCount].streamName = streamName;
         clients[clientCount].clientData = clientData;
         clients[clientCount].dataSent = false;
         clientCount++;
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Client added: %.*s\n", streamName.length, streamName.data);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Client added: %.*s\n", (int)streamName.length, streamName.data);
         checkAndSendData();  // Új klienst hozzáadtunk, ellenőrizzük, hogy van-e match
     }
 }
@@ -152,6 +153,7 @@ static void addTSNStreamObject(UA_Server *server) {
     } else {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Failed to create IP variable.\n");
     }
+}
 
     // Függvény az ellenőrzésre
 //void checkStreamValues(UA_Server *server, UA_NodeId streamNameSNodeId, UA_NodeId streamNameRNodeId) {
@@ -222,6 +224,4 @@ int main(void) {
     UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
     return 0;
-}
-
 }
