@@ -67,7 +67,7 @@ static UA_StatusCode handleClientData(UA_Server* server,
    Ezek a változók reprezentálják a TSN stream paramétereit, mint például hogy mikor induljon a stream, stb.
    Ezeket a változókat a szerver tárolja, és elérhetővé teszi az OPC-UA hálózaton keresztül.
 */
-static void addTSNStreamObject(UA_Server *server) {
+/*static void addTSNStreamObject(UA_Server *server) {
     // Alap objektum attribútumok beállítása
     UA_ObjectAttributes objAttr = UA_ObjectAttributes_default;
     objAttr.displayName = UA_LOCALIZEDTEXT("en-US", "TSN Stream Parameters");
@@ -153,33 +153,33 @@ static void addTSNStreamObject(UA_Server *server) {
     } else {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Failed to create IP variable.\n");
     }
-}
+}*/
 
     // Függvény az ellenőrzésre
-//void checkStreamValues(UA_Server *server, UA_NodeId streamNameSNodeId, UA_NodeId streamNameRNodeId) {
-//    // Változók inicializálása a beolvasott értékek tárolására
-//    UA_Variant streamNameSValue;
-//   UA_Variant_init(&streamNameSValue);
-//
-//    UA_Variant streamNameRValue;
-//    UA_Variant_init(&streamNameRValue);
-//
-//    // Az értékek lekérése a szerverről
-//    UA_Server_readValue(server, streamNameSNodeId, &streamNameSValue);
-//    UA_String streamNameS = *(UA_String*)streamNameSValue.data;
-//
-//    UA_Server_readValue(server, streamNameRNodeId, &streamNameRValue);
-//    UA_String streamNameR = *(UA_String*)streamNameRValue.data;
-//
-//   // Felszabadítás
-//    UA_Variant_clear(&streamNameSValue);
-//    UA_Variant_clear(&streamNameRValue);
-//
-//    // Ellenőrzés
-//    if(strcmp((char*)streamNameS.data, "Stream1") == 0 && strcmp((char*)streamNameR.data, "Stream2") == 0) {
-//        printf("Ready\n");
-//    }
-//}
+/*void checkStreamValues(UA_Server *server, UA_NodeId streamNameSNodeId, UA_NodeId streamNameRNodeId) {
+    // Változók inicializálása a beolvasott értékek tárolására
+    UA_Variant streamNameSValue;
+   UA_Variant_init(&streamNameSValue);
+
+    UA_Variant streamNameRValue;
+    UA_Variant_init(&streamNameRValue);
+
+    // Az értékek lekérése a szerverről
+    UA_Server_readValue(server, streamNameSNodeId, &streamNameSValue);
+    UA_String streamNameS = *(UA_String*)streamNameSValue.data;
+
+    UA_Server_readValue(server, streamNameRNodeId, &streamNameRValue);
+    UA_String streamNameR = *(UA_String*)streamNameRValue.data;
+
+   // Felszabadítás
+    UA_Variant_clear(&streamNameSValue);
+    UA_Variant_clear(&streamNameRValue);
+
+    // Ellenőrzés
+    if(strcmp((char*)streamNameS.data, "Stream1") == 0 && strcmp((char*)streamNameR.data, "Stream2") == 0) {
+        printf("Ready\n");
+    }
+}*/
 
 int main(void) {
     UA_Server *server = UA_Server_new();
