@@ -186,7 +186,7 @@ int main(void) {
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     // TSN stream paraméterek objektum hozzáadása
-    addTSNStreamObject(server);
+    //addTSNStreamObject(server);
 
     // Kliens adatait kezelő metódus hozzáadása
 
