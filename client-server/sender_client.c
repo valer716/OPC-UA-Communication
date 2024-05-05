@@ -1,48 +1,81 @@
-#include <open62541/client_highlevel.h>
-#include <open62541/plugin/log_stdout.h>
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
-#include <signal.h>
+#include <open62541/plugin/log_stdout.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
+#include <open62541/client_subscriptions.h>
+#include <open62541/client_highlevel.h>
 
-static volatile UA_Boolean running = true;
-
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received Ctrl-C or SIGINT. Exiting...");
-    running = false;
-}
-
-static void setTSNStreamParameters(UA_Client *client) {
-    UA_NodeId streamNameSNodeId = UA_NODEID_NUMERIC(1, 5002);
-    UA_String streamNameS = UA_STRING("Stream1");
-    UA_Variant streamNameSValue;
-    UA_Variant_setScalar(&streamNameSValue, &streamNameS, &UA_TYPES[UA_TYPES_STRING]);
-    UA_Client_writeValueAttribute(client, streamNameSNodeId, &streamNameSValue);
-
-    UA_NodeId portNodeId = UA_NODEID_NUMERIC(1, 5002);
-    UA_Int32 port = 100;
-    UA_Variant portValue;
-    UA_Variant_setScalar(&portValue, &port, &UA_TYPES[UA_TYPES_INT32]);
-    UA_Client_writeValueAttribute(client, portNodeId, &portValue);
-
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "TSN Stream Parameters set successfully.");
+static void onFoundMatchNotification(UA_Client *client, UA_UInt32 subId, void *subContext,
+                                     UA_UInt32 monId, void *monContext, UA_DataValue *value) {
+    if(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_BOOLEAN])) {
+        UA_Boolean dataChanged = *(UA_Boolean *)value->value.data;
+        if(dataChanged) {
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Data change detected, retrieving configuration data.\n");
+            UA_Variant v;
+            UA_Variant_init(&v);
+            UA_StatusCode retval = UA_Client_readValueAttribute(client, UA_NODEID_NUMERIC(1, 6003), &v);
+            if(retval == UA_STATUSCODE_GOOD && UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_STRING])) {
+                UA_String receivedData = *(UA_String *)v.data;
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received data: %.*s\n", (int)receivedData.length, receivedData.data);
+            }
+            UA_Variant_clear(&v);
+        }
+    }
 }
 
 int main(void) {
-    signal(SIGINT, stopHandler);
-
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-    UA_Client_connect(client, "opc.tcp://localhost:4840");
-    setTSNStreamParameters(client); //paraméterek beállítása a szerveren
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Press Ctrl-C to Exit...");
-
-    while(running){
-        usleep(100000);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(client);
+        return EXIT_FAILURE;
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Exiting...");
+    // Adatok elküldése a szerveren definiált metóduson keresztül
+    UA_String streamName = UA_STRING("Stream1");
+    UA_String port = UA_STRING("12345");  // Példa port érték
+
+    UA_Variant input[2];
+
+    UA_Variant_init(&input[0]);
+    UA_Variant_init(&input[1]);
+
+    UA_Variant_setScalarCopy(&input[0], &streamName, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalarCopy(&input[1], &port, &UA_TYPES[UA_TYPES_STRING]);
+
+    UA_Variant *output = NULL;
+    size_t outputSize;
+
+    retval = UA_Client_call(client,
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                          UA_NODEID_STRING(1, "handleClientData"),
+                                          2, &input,
+                                          &outputSize, &output);
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Method call was successful.\n");
+    } else {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Method call failed with %s.\n", UA_StatusCode_name(retval));
+    }
+
+    // Create a subscription
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
+                                                                             NULL, NULL, NULL);
+
+    // Create a MonitoredItem
+    UA_MonitoredItemCreateRequest monRequest = UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(1, 5001));  // DataChanged Node
+    monRequest.requestedParameters.samplingInterval = 1000.0;  // 1 second
+    UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
+                                              UA_TIMESTAMPSTORETURN_BOTH, monRequest,
+                                              NULL, onFoundMatchNotification, NULL);
+
+    // Running the client
+    while(!UA_Client_run_iterate(client, 1000));  // Run client every 1 second
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
