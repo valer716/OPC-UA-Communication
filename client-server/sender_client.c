@@ -19,7 +19,7 @@ static void onFoundMatchNotification(UA_Client *client, UA_UInt32 subId, void *s
             if(retval == UA_STATUSCODE_GOOD && UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_STRING])) {
                 UA_String receivedData = *(UA_String *)v.data;
                 UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received data: %.*s\n", (int)receivedData.length, receivedData.data);
-            }
+            } else { UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to exchange data.\n"); }
             UA_Variant_clear(&v);
         }
     }
@@ -53,7 +53,7 @@ int main(void) {
     retval = UA_Client_call(client,
                                           UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                           UA_NODEID_STRING(1, "handleClientData"),
-                                          2, &input,
+                                          2, input,
                                           &outputSize, &output);
 
     if(retval == UA_STATUSCODE_GOOD) {
@@ -66,7 +66,6 @@ int main(void) {
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
                                                                              NULL, NULL, NULL);
-
     // Create a MonitoredItem
     UA_MonitoredItemCreateRequest monRequest = UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(1, 5001));  // DataChanged Node
     monRequest.requestedParameters.samplingInterval = 1000.0;  // 1 second

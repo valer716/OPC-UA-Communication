@@ -35,8 +35,8 @@ static void checkAndSendData() {
                 UA_Variant_setScalar(&booleanvalue, &foundMatch, &UA_TYPES[UA_TYPES_BOOLEAN]);
                 UA_Server_writeValue(globalServer, foundMatchNodeId, booleanvalue);
 
-                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"Data exchanged between %.*s and %.*s.\n", clients[i].streamName.length, clients[i].streamName.data,
-                                                                  clients[j].streamName.length, clients[j].streamName.data);
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"Data exchanged between %.*s and %.*s.\n", (int)clients[i].streamName.length, clients[i].streamName.data,
+                                                                  (int)clients[j].streamName.length, clients[j].streamName.data);
             }
         }
     }
@@ -122,7 +122,7 @@ int main(void) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
         UA_QUALIFIEDNAME(1, "handleClientData"),
         methodAttr, &handleClientData,
-        2, &inputArguments, 0, NULL, NULL, NULL);
+        2, inputArguments, 0, NULL, NULL, NULL);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Starting OPC-UA server...\n");
     UA_Server_runUntilInterrupt(server);
