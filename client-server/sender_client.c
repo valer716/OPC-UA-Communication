@@ -85,21 +85,8 @@ int main(void) {
                                               UA_TIMESTAMPSTORETURN_BOTH, monRequest,
                                               NULL, onFoundMatchNotification, NULL);
     // Eseményciklus
-   while (true) {
+    while (true) {
         retval = UA_Client_run_iterate(client, 1000);
-        if (retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Connection lost, attempting to reconnect...");
-
-            // Kapcsolat bontása és újracsatlakozás
-            UA_Client_disconnect(client);
-            retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-            if (retval != UA_STATUSCODE_GOOD) {
-                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Reconnect failed with %s", UA_StatusCode_name(retval));
-                break;  // Ha nem sikerült újracsatlakozni, kilépünk a ciklusból
-            }
-
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Reconnected successfully.");
-        }
     }
 
     UA_Client_disconnect(client);
