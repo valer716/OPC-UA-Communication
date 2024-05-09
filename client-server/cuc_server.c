@@ -2,69 +2,154 @@
 #include <open62541/server_config_default.h>
 #include <stdio.h>
 #include <open62541/plugin/log_stdout.h>
+#include <string.h>
+#include <open62541/client_subscriptions.h>
 
-/*
-   A szerveren létrehozunk egy objektumot, amely különböző változókat tartalmaz.
-   Ezek a változók reprezentálják a TSN stream paramétereit, mint például hogy mikor induljon a stream, stb.
-   Ezeket a változókat a szerver tárolja, és elérhetővé teszi az OPC-UA hálózaton keresztül.
-*/
-static void addTSNStreamObject(UA_Server *server) {
-    // Alap objektum attribútumok beállítása
-    UA_ObjectAttributes objAttr = UA_ObjectAttributes_default;
-    objAttr.displayName = UA_LOCALIZEDTEXT("en-US", "TSN Stream Parameters");
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId objectNodeId = UA_NODEID_NUMERIC(1, 5001);
 
-    // Objektum node hozzáadása
-    UA_StatusCode status = UA_Server_addObjectNode(server, objectNodeId, parentNodeId,
-                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                                   UA_QUALIFIEDNAME(1, "TSNStreamParameters"),
-                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-                                                   objAttr, NULL, NULL);
-    if (status == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "TSN Stream Parameters object created successfully.\n");
-    } else {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Failed to create TSN Stream Parameters object.\n");
+typedef struct {
+    UA_String streamName;
+    UA_String clientData;  // Ez lehet IP cím vagy port szám
+} ClientInfo;
+
+ClientInfo clients[10];
+int clientCount = 0;
+int maxClients = 10;
+
+UA_NodeId foundMatchNodeId;
+UA_Server *globalServer;
+
+static void checkAndSendData() {
+    for (int i = 0; i < clientCount; i++) {
+        for (int j = i + 1; j < clientCount; j++) {
+            if (UA_String_equal(&clients[i].streamName, &clients[j].streamName)) {
+                // Port Node létrehozása 6002 Node ID-vel
+                UA_VariableAttributes attr = UA_VariableAttributes_default;
+                attr.displayName = UA_LOCALIZEDTEXT("en-US", "Port Number");
+                attr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+                attr.valueRank = UA_VALUERANK_SCALAR;
+                UA_String initialPortValue = UA_STRING("Initial Port Value");
+                UA_Variant_setScalar(&attr.value, &initialPortValue, &UA_TYPES[UA_TYPES_STRING]);
+
+                UA_NodeId portNodeId = UA_NODEID_NUMERIC(1, 6002);
+                UA_Server_addVariableNode(globalServer, portNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                          UA_QUALIFIEDNAME(1, "PortNumber"),
+                          UA_NODEID_NULL, attr, NULL, NULL);
+
+                // IP Node létrehozása 6003 Node ID-vel
+                attr.displayName = UA_LOCALIZEDTEXT("en-US", "IP Address");
+                attr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+                UA_String initialIPValue = UA_STRING("Initial IP Value");
+                UA_Variant_setScalar(&attr.value, &initialIPValue, &UA_TYPES[UA_TYPES_STRING]);
+
+                UA_NodeId ipNodeId = UA_NODEID_NUMERIC(1, 6003);
+                UA_Server_addVariableNode(globalServer, ipNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                          UA_QUALIFIEDNAME(1, "IPAddress"),
+                          UA_NODEID_NULL, attr, NULL, NULL);
+
+                // Adatok kicserélése
+                UA_Variant value;
+                UA_Variant_init(&value);
+                UA_Variant_setScalar(&value, &clients[i].clientData, &UA_TYPES[UA_TYPES_STRING]);
+                UA_Server_writeValue(globalServer, portNodeId, value);  // Port küldése
+
+                UA_Variant_setScalar(&value, &clients[j].clientData, &UA_TYPES[UA_TYPES_STRING]);
+                UA_Server_writeValue(globalServer, ipNodeId, value);  // IP cím küldése
+
+                UA_Variant booleanvalue;
+                UA_Boolean foundMatch = true;
+                UA_Variant_setScalar(&booleanvalue, &foundMatch, &UA_TYPES[UA_TYPES_BOOLEAN]);
+                UA_Server_writeValue(globalServer, foundMatchNodeId, booleanvalue);
+
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"Data exchanged between %.*s and %.*s.\n", (int)clients[i].streamName.length, clients[i].streamName.data,
+                                                                  (int)clients[j].streamName.length, clients[j].streamName.data);
+            }
+        }
+    }
+}
+
+static void addClientInfo(UA_String streamName, UA_String clientData) {
+    if (clientCount < maxClients) {
+        clients[clientCount].streamName =  UA_String_fromChars(streamName.data);
+        clients[clientCount].clientData =  UA_String_fromChars(clientData.data);
+        clientCount++;
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Client added: %.*s\n", (int)streamName.length, streamName.data);
+        checkAndSendData();  // Új klienst hozzáadtunk, ellenőrizzük, hogy van-e match
+    }
+}
+
+// Függvény a kliensek adatainak fogadására
+static UA_StatusCode handleClientData(UA_Server* server,
+    const UA_NodeId* sessionId, void* sessionContext,
+    const UA_NodeId* methodId, void* methodContext,
+    const UA_NodeId* objectId, void* objectContext,
+    size_t inputSize, const UA_Variant* input,
+    size_t outputSize, UA_Variant* output) {
+
+    if (inputSize < 2) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Incorrect number of inputs.");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    // Példa változó hozzáadása: Interval
-    UA_VariableAttributes attr = UA_VariableAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Interval");
-    UA_Int32 interval = 0;  // Kezdeti érték
-    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-    UA_NodeId intervalNodeId = UA_NODEID_NUMERIC(1, 5002);
-    status = UA_Server_addVariableNode(server, intervalNodeId, objectNodeId,
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                       UA_QUALIFIEDNAME(1, "Interval"),
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                       attr, &interval, NULL);
-    if (status == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Interval variable created successfully.\n");
-    } else {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Failed to create Interval variable.\n");
-    }
-    // Hasonlóan adhatók hozzá további változók...
+    UA_String streamName = *(UA_String*)input[0].data;
+    UA_String clientData = *(UA_String*)input[1].data;  // IP cím vagy port
 
-    // OK Message változó létrehozása
-    UA_VariableAttributes okMsgAttr = UA_VariableAttributes_default;
-    okMsgAttr.displayName = UA_LOCALIZEDTEXT("en-US", "OK Message");
-    UA_Boolean ok = false;  // Kezdeti érték: false
-    okMsgAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE; // Fontos!
-    UA_NodeId okMessageNodeId = UA_NODEID_NUMERIC(1, 5003);
-    UA_Server_addVariableNode(server, okMessageNodeId, objectNodeId,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                              UA_QUALIFIEDNAME(1, "OKMessage"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                              okMsgAttr, &ok, NULL);
+    // TODO: logolás
 
+    addClientInfo(streamName, clientData); // kliens hozzáadása
+
+    return UA_STATUSCODE_GOOD;
 }
 
 int main(void) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    globalServer = server;
 
-    // TSN stream paraméterek objektum hozzáadása
-    addTSNStreamObject(server);
+    // foundMatch Node hozzáadása
+    foundMatchNodeId = UA_NODEID_NUMERIC(1, 5001);
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Found Match");
+    attr.dataType = UA_TYPES[UA_TYPES_BOOLEAN].typeId;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_Boolean foundMatch = false;
+    UA_Variant_setScalar(&attr.value, &foundMatch, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Server_addVariableNode(server, foundMatchNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_QUALIFIEDNAME(1, "FoundMatch"),
+                              UA_NODEID_NULL, attr, NULL, NULL);
+
+    // Kliens adatait kezelő metódus hozzáadása
+
+    UA_NodeId methodId = UA_NODEID_STRING(1, "handleClientData");
+    UA_Argument inputArguments[2];
+
+    // streamName
+    UA_Argument_init(&inputArguments[0]);
+    inputArguments[0].dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    inputArguments[0].description = UA_LOCALIZEDTEXT("en-US", "streamName");
+    inputArguments[0].name = UA_STRING("streamName");
+    inputArguments[0].valueRank = -1;
+
+    // clientData
+    UA_Argument_init(&inputArguments[1]);
+    inputArguments[1].dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    inputArguments[1].description = UA_LOCALIZEDTEXT("en-US", "clientData");
+    inputArguments[1].name = UA_STRING("clientData");
+    inputArguments[1].valueRank = -1;
+
+    UA_MethodAttributes methodAttr = UA_MethodAttributes_default;
+    methodAttr.description = UA_LOCALIZEDTEXT("en-US", "Handle Client Data");
+    methodAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Handle Client Data");
+    methodAttr.executable = true;
+    methodAttr.userExecutable = true;
+
+    UA_Server_addMethodNode(server, methodId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "handleClientData"),
+        methodAttr, &handleClientData,
+        2, inputArguments, 0, NULL, NULL, NULL);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Starting OPC-UA server...\n");
     UA_Server_runUntilInterrupt(server);
