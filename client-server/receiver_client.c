@@ -13,12 +13,12 @@ static void readValueAttributeCallback(UA_Client *client, void *userdata, UA_UIn
     if (status == UA_STATUSCODE_GOOD) {
         if (var->hasValue && UA_Variant_hasScalarType(&var->value, &UA_TYPES[UA_TYPES_STRING])) {
             UA_String receivedData = *(UA_String *)var->value.data;
-            printf("Received data asynchronously: %.*s\n", (int)receivedData.length, receivedData.data);
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received data asynchronously: %.*s\n", (int)receivedData.length, receivedData.data);
         } else {
-            printf("Asynchronous read returned good status, but no valid value found.\n");
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Asynchronous read returned good status, but no valid value found.\n");
         }
     } else {
-        printf("Asynchronous read failed with status: %s\n", UA_StatusCode_name(status));
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Asynchronous read failed with status: %s\n", UA_StatusCode_name(status));
     }
 }
 
@@ -66,7 +66,7 @@ int main(void) {
                                           &outputSize, &output);
 
     if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Method call was successful.\n");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Method call was successful, data has been sent to the server.\n");
     } else {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Method call failed with %s.\n", UA_StatusCode_name(retval));
     }
