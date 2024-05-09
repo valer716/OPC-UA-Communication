@@ -22,13 +22,40 @@ static void checkAndSendData() {
     for (int i = 0; i < clientCount; i++) {
         for (int j = i + 1; j < clientCount; j++) {
             if (UA_String_equal(&clients[i].streamName, &clients[j].streamName)) {
+                // Port Node létrehozása 6002 Node ID-vel
+                UA_VariableAttributes attr = UA_VariableAttributes_default;
+                attr.displayName = UA_LOCALIZEDTEXT("en-US", "Port Number");
+                attr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+                attr.valueRank = UA_VALUERANK_SCALAR;
+                UA_String initialPortValue = UA_STRING("Initial Port Value");
+                UA_Variant_setScalar(&attr.value, &initialPortValue, &UA_TYPES[UA_TYPES_STRING]);
+
+                UA_NodeId portNodeId = UA_NODEID_NUMERIC(1, 6002);
+                UA_Server_addVariableNode(globalServer, portNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                          UA_QUALIFIEDNAME(1, "PortNumber"),
+                          UA_NODEID_NULL, attr, NULL, NULL);
+
+                // IP Node létrehozása 6003 Node ID-vel
+                attr.displayName = UA_LOCALIZEDTEXT("en-US", "IP Address");
+                attr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+                UA_String initialIPValue = UA_STRING("Initial IP Value");
+                UA_Variant_setScalar(&attr.value, &initialIPValue, &UA_TYPES[UA_TYPES_STRING]);
+
+                UA_NodeId ipNodeId = UA_NODEID_NUMERIC(1, 6003);
+                UA_Server_addVariableNode(globalServer, ipNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                          UA_QUALIFIEDNAME(1, "IPAddress"),
+                          UA_NODEID_NULL, attr, NULL, NULL);
+
                 // Adatok kicserélése
                 UA_Variant value;
+                UA_Variant_init(&value);
                 UA_Variant_setScalar(&value, &clients[i].clientData, &UA_TYPES[UA_TYPES_STRING]);
-                UA_Server_writeValue(globalServer, UA_NODEID_NUMERIC(1, 6002), value);  // Port küldése
+                UA_Server_writeValue(globalServer, portNodeId, value);  // Port küldése
 
                 UA_Variant_setScalar(&value, &clients[j].clientData, &UA_TYPES[UA_TYPES_STRING]);
-                UA_Server_writeValue(globalServer, UA_NODEID_NUMERIC(1, 6003), value);  // IP cím küldése
+                UA_Server_writeValue(globalServer, ipNodeId, value);  // IP cím küldése
 
                 UA_Variant booleanvalue;
                 UA_Boolean foundMatch = true;
