@@ -95,8 +95,6 @@ static UA_StatusCode handleClientData(UA_Server* server,
     UA_String streamName = *(UA_String*)input[0].data;
     UA_String clientData = *(UA_String*)input[1].data;  // IP cím vagy port
 
-    // TODO: logolás
-
     addClientInfo(streamName, clientData); // kliens hozzáadása
 
     return UA_STATUSCODE_GOOD;
